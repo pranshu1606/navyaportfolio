@@ -6,7 +6,7 @@ import {
   TilesFadePlugin, TileCompressionPlugin, GLTFExtensionsPlugin, DRACOLoader,
 } from '../lib/3d-tiles/tiles.bundle.js';
 import { createSky } from './world.js';
-import { frameKey } from './flight.js';
+import { frameKey, buildCurves } from './flight.js';
 
 const D2R = Math.PI / 180;
 
@@ -69,7 +69,7 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
   tiles.registerPlugin(new TilesFadePlugin());
   // Detail level: lower = sharper. Start coarse so the first view appears fast,
   // then sharpen over a few seconds (see update()).
-  const FINAL_ERROR = isSmall ? 18 : 10;
+  const FINAL_ERROR = isSmall ? 24 : 18;
   const START_ERROR = 40;
   tiles.errorTarget = START_ERROR;
   tiles.lruCache.maxSize = isSmall ? 1600 : 4000;
@@ -86,7 +86,10 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
   tiles.group.updateMatrixWorld(true);
   scene.add(tiles.group);
   tiles.setCamera(camera);
-  tiles.setResolutionFromRenderer(camera, renderer);
+  // Pick detail by CSS pixels, not device pixels: on retina screens this is ~2.5x less data
+  // for a barely visible difference.
+  const lodSize = () => [window.innerWidth, window.innerHeight];
+  tiles.setResolution(camera, ...lodSize());
 
   const geo = (lat, lon, h = 0) =>
     WGS84_ELLIPSOID.getCartographicToPosition(lat * D2R, lon * D2R, RIVER_ELLIPSOID_HEIGHT + h, new THREE.Vector3()).applyMatrix4(toLocal);
@@ -159,47 +162,81 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
   }
 
   // ---- prefetching ----
-  // A second, invisible "scout" camera visits every stop of the flight ahead of the visitor,
-  // so the city is already downloaded by the time they scroll there. First it sweeps all stops
-  // at low detail, then it hovers over the next stop at higher detail.
-  const stops = KEYS.filter((k) => Number.isInteger(k.a));
+  // A second, invisible "scout" camera flies the route ahead of the visitor so each view is
+  // already downloaded when they scroll there:
+  //  1. at full on-screen detail, every camera position between the current stop and the next
+  //     one (including the Chain Bridge fly-over),
+  //  2. a very low-detail sweep of every other stop, so a fast scroller never sees a blank view,
+  //  3. the stop after next at half detail and the previous one at low detail,
+  //  4. then it parks on the next stop so those tiles stay in the cache.
+  // The plan is rebuilt whenever the visitor reaches a new stop.
+  const saveData = !!navigator.connection?.saveData;
+  const lite = isSmall || saveData; // phones / data saver: next stop only, lower detail
   const scout = camera.clone();
-  let scoutOn = false, scoutIndex = 0, scoutTime = 0, sweep = [], activeStop = 0;
-  function placeScout(i) {
-    const k = stops[Math.min(i, stops.length - 1)];
-    scout.position.copy(k.p); scout.position.y += waterOffset;
-    scout.lookAt(k.l.x, k.l.y + waterOffset, k.l.z);
-    scout.updateMatrixWorld();
+  let scoutOn = false, scoutTime = 0, activeStop = 0, plan = [], sweep = [], park = null;
+  // Data budget: the scout may trigger at most this many tile downloads per stop
+  // (~100 KB each), so a visitor who stays on one section doesn't keep downloading.
+  const LEG_BUDGET = lite ? 60 : 200;
+  let legDownloads = 0;
+  tiles.addEventListener('tile-download-start', () => { if (scoutOn) legDownloads++; });
+  // Sample the actual flight curve (not just keyframes) between two section anchors, the same
+  // way main.js moves the camera, so the scout sees exactly what the visitor will see.
+  const curves = buildCurves(KEYS);
+  const anchorToKey = (a) => {
+    for (let i = 0; i < KEYS.length - 1; i++) {
+      if (a >= KEYS[i].a && a <= KEYS[i + 1].a) return i + (a - KEYS[i].a) / (KEYS[i + 1].a - KEYS[i].a);
+    }
+    return KEYS.length - 1;
+  };
+  const sampleAt = (a) => {
+    const u = anchorToKey(a) / (KEYS.length - 1);
+    return { a, p: curves.pos.getPoint(u), l: curves.look.getPoint(u) };
+  };
+  const keysBetween = (a0, a1, step = 0.125) => {
+    const out = [];
+    for (let a = Math.max(0, a0) + step; a <= Math.min(a1, KEYS[KEYS.length - 1].a) + 1e-6; a += step) out.push(sampleAt(a));
+    return out;
+  };
+  function rebuildPlan() {
+    const full = lite ? 0.55 : 0.75;
+    const ahead = keysBetween(activeStop, activeStop + 1).map((k) => ({ k, scale: full }));
+    const after = lite ? [] : keysBetween(activeStop + 1, activeStop + 2, 0.25).map((k) => ({ k, scale: 0.35 }));
+    plan = [...ahead, ...sweep, ...after];
+    legDownloads = 0;
+    sweep = [];
+    park = ahead.length ? ahead[ahead.length - 1] : { k: sampleAt(activeStop), scale: full };
+    scoutTime = 0;
   }
   function startScout() {
     if (scoutOn) return;
     scoutOn = true;
-    // Phones and data-saver mode skip the full sweep and only fetch the next stop.
-    const saveData = navigator.connection?.saveData;
-    sweep = isSmall || saveData ? [] : stops.map((_, i) => i).filter((i) => i !== activeStop);
+    sweep = lite ? [] : KEYS.filter((k) => Number.isInteger(k.a) && k.a > activeStop + 1).map((k) => ({ k, scale: 0.1, sweep: true }));
+    rebuildPlan();
     tiles.setCamera(scout);
-    scoutTime = 0;
   }
   function updateScout(dt) {
     if (!scoutOn) return;
     scout.aspect = camera.aspect; scout.fov = camera.fov;
     scout.near = camera.near; scout.far = camera.far;
     scout.updateProjectionMatrix();
-    const busy = tiles.stats.downloading + tiles.stats.queued;
+    const { downloading, queued, parsing } = tiles.stats;
+    const busy = downloading + queued + parsing;
     scoutTime += dt;
-    let scale;
-    if (sweep.length) {
-      // low-detail sweep: move on once this stop's downloads settle (or after 4 s)
-      scale = 0.25;
-      if (scoutTime > 0.8 && (busy < 4 || scoutTime > 4)) { sweep.shift(); scoutTime = 0; }
-      if (sweep.length) scoutIndex = sweep[0];
-      else scoutIndex = activeStop + 1;
-    } else {
-      scale = 0.6;
-      scoutIndex = activeStop + 1;
-    }
-    placeScout(scoutIndex);
-    tiles.setResolution(scout, renderer.domElement.width * scale, renderer.domElement.height * scale);
+    // Out of budget for this stop: stay parked on the next view (already loaded) and resume
+    // the rest of the plan once the visitor moves on.
+    const paused = legDownloads > LEG_BUDGET;
+    const job = (!paused && plan[0]) || park;
+    if (!paused && plan.length && scoutTime > 0.3 && (busy < 3 || scoutTime > 6)) { plan.shift(); scoutTime = 0; }
+    scout.position.copy(job.k.p); scout.position.y += waterOffset;
+    scout.lookAt(job.k.l.x, job.k.l.y + waterOffset, job.k.l.z);
+    scout.updateMatrixWorld();
+    tiles.setResolution(scout, lodSize()[0] * job.scale, lodSize()[1] * job.scale);
+  }
+  function setActive(i) {
+    if (i === activeStop) return;
+    activeStop = i;
+    // keep the not-yet-visited part of the sweep for the new plan
+    if (scoutOn) { sweep = plan.filter((j) => j.sweep && j.k.a > i + 1); rebuildPlan(); }
   }
 
   // ---- loading / errors ----
@@ -241,7 +278,10 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
       // sharpen gradually once the first view is up
       if (ready) {
         const k = THREE.MathUtils.clamp((t - readyAt) / 3, 0, 1);
-        tiles.errorTarget = THREE.MathUtils.lerp(START_ERROR, FINAL_ERROR, k);
+        // The high overview shows the whole city at once; a little less detail there saves a lot of data.
+        const altitude = camera.position.y - waterOffset;
+        const target = FINAL_ERROR + THREE.MathUtils.clamp((altitude - 300) / 1200, 0, 1) * 8;
+        tiles.errorTarget = THREE.MathUtils.lerp(START_ERROR, target, k);
         if (k >= 1) startScout();
       }
       updateScout(dt);
@@ -250,12 +290,13 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
       const h = Math.max(1, camera.position.y - waterOffset);
       camera.near = THREE.MathUtils.clamp(h * 0.02, 0.5, 20);
       camera.updateProjectionMatrix();
-      tiles.setResolutionFromRenderer(camera, renderer);
+      tiles.setResolution(camera, ...lodSize());
       camera.updateMatrixWorld();
       tiles.update();
     },
     render() { renderer.render(scene, camera); },
-    setActiveStop(i) { activeStop = i; },
+    setActiveStop: setActive,
+    prefetchState: () => ({ ahead: plan.filter((j) => j.k.a > activeStop && j.k.a <= activeStop + 1).length, plan: plan.length, busy: tiles.stats.downloading + tiles.stats.queued + tiles.stats.parsing }),
     // 0..1 share of requested tiles that have arrived (for the loading pill)
     progress() {
       if (scoutOn) return 1; // initial view done; the rest streams in the background
