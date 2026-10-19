@@ -10,7 +10,7 @@
 //
 // The key is visible to visitors (that's normal for map keys), so restrict it to
 // your site's domain in the Google Cloud / Cesium console.
-export const GOOGLE_MAPS_API_KEY = '';
+export const GOOGLE_MAPS_API_KEY = 'AIzaSyDJJzqBZFmIgmftrs2b8J4NtVZ01joEwrc';
 export const CESIUM_ION_TOKEN = '';
 
 // For quick testing without editing this file you can also open the site with
