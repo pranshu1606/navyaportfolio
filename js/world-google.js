@@ -139,12 +139,73 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
   beacon.position.copy(G(P.corvinus, 210));
   scene.add(beacon);
 
+  // ---- blue Danube ----
+  // The photo texture shows the river's real green-brown colour. A water surface sits just above
+  // the river level: land is higher than it everywhere in the centre, so the depth test hides it
+  // under the city and only the river turns blue. It bends down with the Earth's curvature so it
+  // stays under the ground in the distance, and fades out towards the edge of the city.
+  const EARTH_R = 6371000;
+  const river = new THREE.Mesh(
+    new THREE.PlaneGeometry(24000, 24000, 160, 160).rotateX(-Math.PI / 2),
+    new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      uniforms: {
+        time: { value: 0 },
+        deep: { value: new THREE.Color(0x1d4f86) },
+        shallow: { value: new THREE.Color(0x3f86c4) },
+        skyTint: { value: new THREE.Color(0xa9c8ec) },
+        fogColor: { value: HAZE },
+        fogDensity: { value: scene.fog.density },
+      },
+      vertexShader: /* glsl */ `
+        varying vec3 vWorld;
+        varying float vDist;
+        void main() {
+          vec4 w = modelMatrix * vec4(position, 1.0);
+          w.y -= dot(w.xz, w.xz) / ${(2 * EARTH_R).toFixed(1)};
+          vWorld = w.xyz;
+          vec4 mv = viewMatrix * w;
+          vDist = -mv.z;
+          gl_Position = projectionMatrix * mv;
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float time, fogDensity;
+        uniform vec3 deep, shallow, skyTint, fogColor;
+        varying vec3 vWorld;
+        varying float vDist;
+        float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+        void main() {
+          vec2 p = vWorld.xz;
+          // ripples drifting downstream (the Danube flows south, +z)
+          float r = n(p * vec2(0.08, 0.03) + vec2(0.0, -time * 0.25)) * 0.6
+                  + n(p * vec2(0.25, 0.1) + vec2(time * 0.05, -time * 0.6)) * 0.4;
+          vec3 viewDir = normalize(cameraPosition - vWorld);
+          float fres = pow(1.0 - max(viewDir.y, 0.0), 3.0);
+          vec3 col = mix(deep, shallow, r * 0.55);
+          col = mix(col, skyTint, fres * 0.55);
+          col += vec3(1.0) * smoothstep(0.86, 0.98, r) * 0.12;
+          float fog = 1.0 - exp(-fogDensity * fogDensity * vDist * vDist);
+          float edge = 1.0 - smoothstep(6000.0, 10000.0, length(p));
+          gl_FragColor = vec4(mix(col, fogColor, fog), 0.9 * edge);
+          #include <colorspace_fragment>
+        }`,
+    }),
+  );
+  river.renderOrder = 1;
+  scene.add(river);
+  const RIVER_LIFT = 3.4; // metres above the measured water level (the photo mesh of the water is a little lumpy)
+
   // ---- ground clearance & water-level calibration ----
   const ray = new THREE.Raycaster();
   const down = new THREE.Vector3(0, -1, 0);
   let lift = 0, liftTarget = 0, frameNo = 0;
-  let waterOffset = 0, calibrated = false;
-  const waterProbe = geo(47.4975, 19.044, 0);
+  let waterOffset = 0, waterTarget = 0, calibrated = false;
+  // points mid-river (north of Parliament, Chain Bridge, between Elisabeth and Liberty bridges)
+  const waterProbes = [[47.5065, 19.042], [47.4975, 19.044], [47.4925, 19.047], [47.4885, 19.0526]].map(([la, lo]) => geo(la, lo, 0));
+  let calibrations = 0;
 
   function groundAt(x, z) {
     ray.set(new THREE.Vector3(x, 3000, z), down);
@@ -153,11 +214,14 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
     return hit ? hit.point.y : null;
   }
 
+  // Measure the real water level. Coarse tiles are lumpy, so keep re-measuring while detail
+  // streams in; take the lowest probe (boats and bridges only ever read higher) and ignore
+  // anything far from the expected level.
   function calibrate() {
-    const y = groundAt(waterProbe.x, waterProbe.z);
-    if (y !== null && Math.abs(y) < 40) {
-      waterOffset = y;
-      calibrated = true;
+    const ys = waterProbes.map((v) => groundAt(v.x, v.z)).filter((y) => y !== null && Math.abs(y) < 6);
+    if (ys.length >= 2) {
+      waterTarget = Math.min(...ys);
+      calibrated = ++calibrations >= 12;
     }
   }
 
@@ -264,9 +328,10 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
     ready: readyPromise,
     // Adjust the camera after it is placed on the flight path.
     adjustCamera(cam, look) {
+      waterOffset += (waterTarget - waterOffset) * 0.05; // ease, so a re-measure never jolts the camera
       cam.y += waterOffset; look.y += waterOffset;
       if (++frameNo % 5 === 0) {
-        if (!calibrated && frameNo > 30) calibrate();
+        if (!calibrated && frameNo > 30 && frameNo % 60 === 0) calibrate();
         const g = groundAt(cam.x, cam.z);
         liftTarget = g !== null ? Math.max(0, g + 14 - cam.y) : 0;
       }
@@ -287,6 +352,8 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
       updateScout(dt);
       sky.position.copy(camera.position);
       beacon.material.opacity = 0.07 + Math.sin(t * 1.5) * 0.025;
+      river.position.y = waterOffset + RIVER_LIFT;
+      river.material.uniforms.time.value = t;
       const h = Math.max(1, camera.position.y - waterOffset);
       camera.near = THREE.MathUtils.clamp(h * 0.02, 0.5, 20);
       camera.updateProjectionMatrix();
