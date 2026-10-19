@@ -54,21 +54,32 @@ async function init() {
     world = createModelWorld({ renderer, camera, isSmall });
     onWorldChanged();
   }
+  // Try the Google key first, then the Cesium token, then fall back to the stylised model.
+  async function useTiles(k) {
+    loaderText.textContent = 'Streaming photorealistic Budapest';
+    const { createGoogleWorld } = await import('./world-google.js');
+    const created = createGoogleWorld({
+      renderer, camera, isSmall, keys: k,
+      onFatal: (err) => {
+        if (world !== created) return;
+        world.dispose();
+        world = null;
+        if (k.google && k.ion) {
+          console.warn('Google tiles unavailable, trying Cesium ion instead.', err);
+          useTiles({ google: '', ion: k.ion }).catch(() => useModel());
+        } else {
+          console.warn('Photorealistic tiles unavailable, using the stylised model instead.', err);
+          useModel();
+        }
+      },
+    });
+    world = created;
+    onWorldChanged();
+  }
   const keys = resolveKeys();
   if (keys.google || keys.ion) {
-    loaderText.textContent = 'Streaming photorealistic Budapest';
     try {
-      const { createGoogleWorld } = await import('./world-google.js');
-      world = createGoogleWorld({
-        renderer, camera, isSmall, keys,
-        onFatal: (err) => {
-          console.warn('Photorealistic tiles unavailable, using the stylised model instead.', err);
-          if (world?.kind !== 'google') return;
-          world.dispose();
-          world = null;
-          useModel();
-        },
-      });
+      await useTiles(keys);
     } catch (err) {
       console.warn(err);
       await useModel();
@@ -76,8 +87,6 @@ async function init() {
   } else {
     await useModel();
   }
-
-  if (world.kind === 'google') onWorldChanged();
 
   // ---- scroll → flight position ----
   const sections = [...document.querySelectorAll('.stop')];
