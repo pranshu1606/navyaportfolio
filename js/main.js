@@ -6,6 +6,8 @@ const canvas = document.getElementById('scene');
 const loader = document.getElementById('loader');
 const loaderText = document.getElementById('loader-text');
 const credits = document.getElementById('credits');
+const tilesStatus = document.getElementById('tiles-status');
+const tilesBar = document.getElementById('tiles-bar');
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function webglAvailable() {
@@ -128,6 +130,7 @@ async function init() {
     const r = scrollToKey(window.scrollY);
     target = r.k;
     const active = Math.round(r.si);
+    world.setActiveStop?.(active);
     sections.forEach((s, i) => s.classList.toggle('active', i === active));
     rail.forEach((a, i) => a.classList.toggle('active', i === active));
     const s = sections[active];
@@ -200,7 +203,10 @@ async function init() {
     }
 
     if ((creditsTimer -= rawDt) <= 0) {
-      creditsTimer = 1;
+      creditsTimer = 0.5;
+      const p = world.progress ? world.progress() : 1;
+      tilesStatus.hidden = p >= 1;
+      if (p < 1) tilesBar.style.transform = `scaleX(${p.toFixed(2)})`;
       const text = world.attributions();
       credits.hidden = !text;
       if (text) credits.textContent = `Google · ${text}`;

@@ -67,9 +67,16 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
   tiles.registerPlugin(new GLTFExtensionsPlugin({ dracoLoader: draco }));
   tiles.registerPlugin(new TileCompressionPlugin());
   tiles.registerPlugin(new TilesFadePlugin());
-  tiles.errorTarget = isSmall ? 18 : 10; // lower = sharper
-  tiles.lruCache.maxSize = isSmall ? 1200 : 3000;
-  tiles.lruCache.minSize = isSmall ? 600 : 1500;
+  // Detail level: lower = sharper. Start coarse so the first view appears fast,
+  // then sharpen over a few seconds (see update()).
+  const FINAL_ERROR = isSmall ? 18 : 10;
+  const START_ERROR = 40;
+  tiles.errorTarget = START_ERROR;
+  tiles.lruCache.maxSize = isSmall ? 1600 : 4000;
+  tiles.lruCache.minSize = isSmall ? 800 : 2000;
+  // More parallel downloads and parsing than the defaults (25 / 5).
+  tiles.downloadQueue.maxJobsPerOrigin = isSmall ? 24 : 48;
+  tiles.parseQueue.maxJobs = isSmall ? 4 : 8;
 
   // Place Budapest at the origin with +x east, +y up, +z south (same axes as the stylised model).
   const enu = WGS84_ELLIPSOID.getEastNorthUpFrame(ORIGIN.lat * D2R, ORIGIN.lon * D2R, RIVER_ELLIPSOID_HEIGHT, new THREE.Matrix4());
@@ -151,20 +158,68 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
     }
   }
 
+  // ---- prefetching ----
+  // A second, invisible "scout" camera visits every stop of the flight ahead of the visitor,
+  // so the city is already downloaded by the time they scroll there. First it sweeps all stops
+  // at low detail, then it hovers over the next stop at higher detail.
+  const stops = KEYS.filter((k) => Number.isInteger(k.a));
+  const scout = camera.clone();
+  let scoutOn = false, scoutIndex = 0, scoutTime = 0, sweep = [], activeStop = 0;
+  function placeScout(i) {
+    const k = stops[Math.min(i, stops.length - 1)];
+    scout.position.copy(k.p); scout.position.y += waterOffset;
+    scout.lookAt(k.l.x, k.l.y + waterOffset, k.l.z);
+    scout.updateMatrixWorld();
+  }
+  function startScout() {
+    if (scoutOn) return;
+    scoutOn = true;
+    // Phones and data-saver mode skip the full sweep and only fetch the next stop.
+    const saveData = navigator.connection?.saveData;
+    sweep = isSmall || saveData ? [] : stops.map((_, i) => i).filter((i) => i !== activeStop);
+    tiles.setCamera(scout);
+    scoutTime = 0;
+  }
+  function updateScout(dt) {
+    if (!scoutOn) return;
+    scout.aspect = camera.aspect; scout.fov = camera.fov;
+    scout.near = camera.near; scout.far = camera.far;
+    scout.updateProjectionMatrix();
+    const busy = tiles.stats.downloading + tiles.stats.queued;
+    scoutTime += dt;
+    let scale;
+    if (sweep.length) {
+      // low-detail sweep: move on once this stop's downloads settle (or after 4 s)
+      scale = 0.25;
+      if (scoutTime > 0.8 && (busy < 4 || scoutTime > 4)) { sweep.shift(); scoutTime = 0; }
+      if (sweep.length) scoutIndex = sweep[0];
+      else scoutIndex = activeStop + 1;
+    } else {
+      scale = 0.6;
+      scoutIndex = activeStop + 1;
+    }
+    placeScout(scoutIndex);
+    tiles.setResolution(scout, renderer.domElement.width * scale, renderer.domElement.height * scale);
+  }
+
   // ---- loading / errors ----
-  let ready = false;
-  const readyPromise = new Promise((resolve) => {
-    tiles.addEventListener('tiles-load-end', () => { if (!ready) { ready = true; resolve(); } });
-    setTimeout(() => { if (!ready) { ready = true; resolve(); } }, 15000);
-  });
+  // The page doesn't wait for the whole city: the loading screen lifts as soon as the tileset
+  // answers (2.5 s at most) and a small pill shows the first view filling in.
+  let ready = false, readyAt = 0, clockT = 0;
+  let markReady;
+  const readyPromise = new Promise((resolve) => { markReady = resolve; });
+  const finishLoading = () => { if (!ready) { ready = true; readyAt = clockT; markReady(); } };
+  tiles.addEventListener('tiles-load-end', finishLoading);
+  setTimeout(finishLoading, 2500);
   let rootOk = false;
-  tiles.addEventListener('load-root-tileset', () => { rootOk = true; });
+  tiles.addEventListener('load-root-tileset', () => { rootOk = true; setTimeout(finishLoading, 600); });
   tiles.addEventListener('load-error', (e) => {
     if (!rootOk) onFatal?.(e.error || new Error('Could not load the photorealistic tiles'));
   });
 
   return {
     kind: 'google',
+    tiles,
     scene,
     keys: KEYS,
     labels,
@@ -181,7 +236,15 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
       lift += (liftTarget - lift) * 0.15;
       cam.y += lift; look.y += lift * 0.5;
     },
-    update(t) {
+    update(t, dt) {
+      clockT = t;
+      // sharpen gradually once the first view is up
+      if (ready) {
+        const k = THREE.MathUtils.clamp((t - readyAt) / 3, 0, 1);
+        tiles.errorTarget = THREE.MathUtils.lerp(START_ERROR, FINAL_ERROR, k);
+        if (k >= 1) startScout();
+      }
+      updateScout(dt);
       sky.position.copy(camera.position);
       beacon.material.opacity = 0.07 + Math.sin(t * 1.5) * 0.025;
       const h = Math.max(1, camera.position.y - waterOffset);
@@ -192,6 +255,14 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
       tiles.update();
     },
     render() { renderer.render(scene, camera); },
+    setActiveStop(i) { activeStop = i; },
+    // 0..1 share of requested tiles that have arrived (for the loading pill)
+    progress() {
+      if (scoutOn) return 1; // initial view done; the rest streams in the background
+      const { downloading, queued, parsing } = tiles.stats;
+      const pending = downloading + queued + parsing;
+      return pending === 0 ? 1 : Math.min(0.99, 1 - pending / (pending + 40));
+    },
     attributions() {
       return tiles.getAttributions().map((a) => a.value).filter((v) => typeof v === 'string').join(' ');
     },

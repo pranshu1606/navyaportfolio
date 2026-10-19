@@ -11,6 +11,12 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+  <!-- start talking to the 3D tile servers and fetching the 3D code before it's needed -->
+  <link rel="preconnect" href="https://tile.googleapis.com" crossorigin />
+  <link rel="modulepreload" href="lib/three/three.module.js" />
+  <link rel="modulepreload" href="lib/three/three.core.js" />
+  <link rel="modulepreload" href="lib/3d-tiles/tiles.bundle.js" />
+  <link rel="modulepreload" href="js/world-google.js" />
   <script type="importmap">
     {
       "imports": {
@@ -64,6 +70,10 @@
     </div>
   </div>
   <p id="credits" class="credits" hidden></p>
+  <div id="tiles-status" class="tiles-status" role="status" hidden>
+    <span>Sharpening 3D Budapest</span>
+    <i><b id="tiles-bar"></b></i>
+  </div>
 
   <main>
     <!-- 0 · HERO -->
@@ -251,7 +261,7 @@
         </div>
         <button class="back-top" data-goto="0">↑ Back to the sky</button>
       </div>
-      <footer>© 2026 Navya Joshi · Stylised 3D Budapest built with Three.js. Not to scale.</footer>
+      <footer>© 2026 Navya Joshi · 3D Budapest built with Three.js.</footer>
     </section>
   </main>
 
