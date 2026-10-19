@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Navya Joshi · Data Science & Business</title>
+  <meta name="description" content="Portfolio of Navya Joshi — first-year BE student in Data Science and Business at Corvinus University of Budapest. Fly across a 3D Budapest to explore." />
+  <meta name="theme-color" content="#0b1026" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='16' fill='%230b1026'/><text x='32' y='42' font-family='Georgia' font-size='28' text-anchor='middle' fill='%23ffb86b'>NJ</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./lib/three/three.module.js",
+        "three/addons/": "./lib/three/addons/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="scene" aria-hidden="true"></canvas>
+  <div id="labels" aria-hidden="true"></div>
+  <div class="vignette" aria-hidden="true"></div>
+
+  <div id="loader" role="status">
+    <div class="loader-inner">
+      <div class="loader-mark">NJ</div>
+      <p>Building Budapest<span class="dots"></span></p>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <a href="#top" class="brand" data-goto="0">Navya Joshi</a>
+    <nav aria-label="Sections">
+      <a href="#about" data-goto="1">About</a>
+      <a href="#education" data-goto="2">Education</a>
+      <a href="#skills" data-goto="3">Skills</a>
+      <a href="#cctc" data-goto="4">CCTC</a>
+      <a href="#projects" data-goto="5">Projects</a>
+      <a href="#contact" data-goto="7" class="cta">Contact</a>
+    </nav>
+  </header>
+
+  <aside class="rail" aria-label="Flight route">
+    <div class="rail-track"><div id="progress-bar"></div></div>
+    <a href="#top" data-goto="0"><span>Above the city</span></a>
+    <a href="#about" data-goto="1"><span>Parliament</span></a>
+    <a href="#education" data-goto="2"><span>Chain Bridge</span></a>
+    <a href="#skills" data-goto="3"><span>Buda Castle</span></a>
+    <a href="#cctc" data-goto="4"><span>Elisabeth Bridge</span></a>
+    <a href="#projects" data-goto="5"><span>Gellért Hill</span></a>
+    <a href="#journey" data-goto="6"><span>Liberty Bridge</span></a>
+    <a href="#contact" data-goto="7"><span>Corvinus</span></a>
+  </aside>
+
+  <div class="place" aria-live="polite">
+    <span class="pin"></span>
+    <div>
+      <strong id="place-name">Above Budapest</strong>
+      <small id="place-coords">47.4979° N, 19.0402° E</small>
+    </div>
+  </div>
+
+  <main>
+    <!-- 0 · HERO -->
+    <section id="top" class="stop hero" data-place="Above Budapest" data-coords="47.4979° N, 19.0402° E">
+      <div class="panel panel-hero">
+        <p class="eyebrow">Portfolio · Budapest, Hungary</p>
+        <h1>Navya<br /><em>Joshi</em></h1>
+        <p class="lead">First-year <strong>Data Science &amp; Business</strong> student at
+          <strong>Corvinus University of Budapest</strong>, learning to turn data into decisions.</p>
+        <div class="actions">
+          <a href="#about" class="btn primary" data-goto="1">Start the flight</a>
+          <a href="#contact" class="btn ghost" data-goto="7">Get in touch</a>
+        </div>
+      </div>
+      <div class="scroll-hint" aria-hidden="true"><span></span>Scroll to fly across the Danube</div>
+    </section>
+
+    <!-- 1 · ABOUT — Parliament -->
+    <section id="about" class="stop" data-side="left" data-place="Hungarian Parliament" data-coords="47.5071° N, 19.0456° E">
+      <div class="panel">
+        <p class="eyebrow">01 · About me</p>
+        <h2>Hello, I'm Navya.</h2>
+        <p>I'm in my first year of the BE in Data Science and Business at Corvinus University of Budapest,
+          a programme that sits right where numbers meet decisions. I'm drawn to the questions behind the
+          data: why people choose what they choose, what makes a business grow, and how to explain an insight
+          so clearly that anyone can act on it.</p>
+        <p>Outside lectures I'm part of the <strong>CCTC</strong> club at Corvinus, and I'm making the most of
+          student life in one of Europe's most beautiful cities, which is why this site is a flight across it.</p>
+        <dl class="facts">
+          <div><dt>Based in</dt><dd>Budapest, Hungary</dd></div>
+          <div><dt>Studying</dt><dd>Data Science &amp; Business</dd></div>
+          <div><dt>Year</dt><dd>1st year · 2026 –</dd></div>
+          <div><dt>Open to</dt><dd>Projects, internships, ideas</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- 2 · EDUCATION — Chain Bridge -->
+    <section id="education" class="stop" data-side="right" data-place="Széchenyi Chain Bridge" data-coords="47.4990° N, 19.0434° E">
+      <div class="panel">
+        <p class="eyebrow">02 · Education</p>
+        <h2>Bridging data &amp; business</h2>
+        <p class="muted">The Chain Bridge first joined Buda and Pest in 1849. My degree joins two worlds too:
+          the analytical and the commercial.</p>
+        <article class="edu">
+          <div class="edu-head">
+            <div>
+              <h3>Corvinus University of Budapest</h3>
+              <p>BE in Data Science and Business</p>
+            </div>
+            <span class="badge">2026 – present</span>
+          </div>
+          <p class="small-label">First-year foundations</p>
+          <ul class="chips">
+            <li>Mathematics for Business</li>
+            <li>Introduction to Programming</li>
+            <li>Statistics &amp; Probability</li>
+            <li>Microeconomics</li>
+            <li>Principles of Management</li>
+            <li>Business Communication</li>
+          </ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- 3 · SKILLS — Buda Castle -->
+    <section id="skills" class="stop" data-side="left" data-place="Buda Castle &amp; Fisherman's Bastion" data-coords="47.4962° N, 19.0396° E">
+      <div class="panel wide">
+        <p class="eyebrow">03 · Toolkit</p>
+        <h2>Skills I'm building</h2>
+        <p class="muted">Castle Hill took centuries to build, one stone at a time. Here's where my skills stand right now.</p>
+        <div class="skill-cols">
+          <div>
+            <h3><span class="dot d1"></span>Using</h3>
+            <ul>
+              <li>Excel &amp; Google Sheets</li>
+              <li>Python fundamentals</li>
+              <li>Presentations &amp; storytelling</li>
+              <li>Research &amp; teamwork</li>
+            </ul>
+          </div>
+          <div>
+            <h3><span class="dot d2"></span>Learning now</h3>
+            <ul>
+              <li>Pandas &amp; NumPy</li>
+              <li>Statistics</li>
+              <li>SQL</li>
+              <li>Data visualisation</li>
+            </ul>
+          </div>
+          <div>
+            <h3><span class="dot d3"></span>Next on the map</h3>
+            <ul>
+              <li>Machine learning basics</li>
+              <li>Power BI / Tableau</li>
+              <li>Business analytics</li>
+              <li>R</li>
+            </ul>
+          </div>
+        </div>
+        <ul class="chips soft">
+          <li>Curiosity</li><li>Communication</li><li>Problem solving</li><li>Collaboration</li><li>Adaptability</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 4 · CCTC — Elisabeth Bridge -->
+    <section id="cctc" class="stop" data-side="right" data-place="Elisabeth Bridge" data-coords="47.4906° N, 19.0507° E">
+      <div class="panel">
+        <p class="eyebrow">04 · Involvement</p>
+        <h2>CCTC at Corvinus</h2>
+        <div class="role">
+          <span class="role-icon">◆</span>
+          <div>
+            <h3>Member, CCTC</h3>
+            <p>Corvinus University of Budapest · 2026 – present</p>
+          </div>
+        </div>
+        <p>Joining CCTC in my first semester was my way of learning outside the lecture hall. The club puts
+          me alongside students from different years and backgrounds, and gives me room to practise what
+          makes data useful in the real world: teamwork, communication and taking initiative.</p>
+        <ul class="ticks">
+          <li>Taking part in club events, sessions and team activities</li>
+          <li>Meeting students, alumni and professionals from the Corvinus community</li>
+          <li>Picking up practical skills that complement my coursework</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- 5 · PROJECTS — Gellért Hill -->
+    <section id="projects" class="stop" data-side="left" data-place="Gellért Hill · Liberty Statue" data-coords="47.4865° N, 19.0470° E">
+      <div class="panel wide">
+        <p class="eyebrow">05 · Projects</p>
+        <h2>The view from the hill</h2>
+        <p class="muted">Every good analysis starts with a vantage point. Here's what I'm working on and where I'm headed next.</p>
+        <div class="cards">
+          <article class="card">
+            <span class="status live">Live</span>
+            <h3>This portfolio</h3>
+            <p>A scroll-driven 3D flight across a hand-modelled Budapest. Code, design and the city I study in, all in one.</p>
+            <p class="tags">Three.js · JavaScript · WebGL</p>
+          </article>
+          <article class="card">
+            <span class="status wip">In progress</span>
+            <h3>Budapest in data</h3>
+            <p>Exploring open data on the city, from public transport to tourism, to find the stories hidden in the numbers.</p>
+            <p class="tags">Python · Pandas · Visualisation</p>
+          </article>
+          <article class="card">
+            <span class="status idea">Next up</span>
+            <h3>Student budget tracker</h3>
+            <p>A small dashboard that turns everyday spending into insights for students living abroad on a budget.</p>
+            <p class="tags">Excel · Python · Dashboards</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6 · JOURNEY — Liberty Bridge -->
+    <section id="journey" class="stop" data-side="right" data-place="Liberty Bridge" data-coords="47.4857° N, 19.0566° E">
+      <div class="panel">
+        <p class="eyebrow">06 · The road ahead</p>
+        <h2>Crossing the green bridge</h2>
+        <p class="muted">Liberty Bridge lands right at the doors of Corvinus. Here's the route I'm planning.</p>
+        <ol class="timeline">
+          <li class="done"><span>2026</span><div><h3>Started at Corvinus</h3><p>Began the BE in Data Science &amp; Business and joined CCTC.</p></div></li>
+          <li><span>2027</span><div><h3>Build &amp; ship</h3><p>Grow a portfolio of data projects; deepen Python, SQL and statistics.</p></div></li>
+          <li><span>2028</span><div><h3>First internship</h3><p>Apply the toolkit in analytics, consulting or a data-driven team.</p></div></li>
+          <li><span>Beyond</span><div><h3>Data with purpose</h3><p>Help organisations make smarter, clearer decisions with data.</p></div></li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- 7 · CONTACT — Corvinus -->
+    <section id="contact" class="stop" data-side="left" data-place="Corvinus University of Budapest" data-coords="47.4858° N, 19.0590° E">
+      <div class="panel">
+        <p class="eyebrow">07 · Destination: Corvinus</p>
+        <h2>Let's connect.</h2>
+        <p>You've landed at Fővám tér, home of Corvinus University and where my journey is happening.
+          I'm always happy to talk about data, business, student projects or opportunities.</p>
+        <div class="contact-links">
+          <a class="btn primary" href="mailto:navya.joshi@example.com">Email me</a>
+          <a class="btn ghost" href="https://www.linkedin.com/" target="_blank" rel="noopener">LinkedIn</a>
+          <a class="btn ghost" href="https://github.com/" target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <button class="back-top" data-goto="0">↑ Back to the sky</button>
+      </div>
+      <footer>© 2026 Navya Joshi · Stylised 3D Budapest built with Three.js. Not to scale.</footer>
+    </section>
+  </main>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
