@@ -17,12 +17,12 @@ const D2R = Math.PI / 180;
 const ORIGIN = { lat: 47.4955, lon: 19.0455 };
 const RIVER_ELLIPSOID_HEIGHT = 141;
 
-const SKY = {
-  top: new THREE.Color(0x3d64a8),
-  mid: new THREE.Color(0x8fb0da),
-  horizon: new THREE.Color(0xf6d2ae),
-};
 const HAZE = new THREE.Color(0xc9d2df);
+const SKY = {
+  top: new THREE.Color(0x163a7e),
+  mid: new THREE.Color(0x5b84c4),
+  horizon: HAZE,
+};
 
 // Landmarks (lat, lon) — from Wikipedia / the university's own address.
 const P = {
@@ -34,7 +34,7 @@ const P = {
   bastion: [47.5022, 19.0348],
   basilica: [47.5009, 19.0539],
   elisabeth: [47.4911, 19.0497],
-  statue: [47.4866, 19.0471],
+  statue: [47.48693, 19.04732],
   liberty: [47.4856, 19.055],
   corvinus: [47.4861, 19.0581],
   island: [47.5265, 19.049],
@@ -43,7 +43,7 @@ const P = {
 export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) {
   const scene = new THREE.Scene();
   scene.background = HAZE.clone();
-  scene.fog = new THREE.FogExp2(HAZE, 0.000105);
+  scene.fog = new THREE.FogExp2(HAZE, 0.00012);
 
   // The tiles are unlit photogrammetry; show their colours as captured.
   renderer.toneMapping = THREE.NoToneMapping;
@@ -52,7 +52,7 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
   camera.updateProjectionMatrix();
 
   const sunDir = new THREE.Vector3(-1, 0.12, 0.45).normalize();
-  const sky = createSky(sunDir, { ...SKY, radius: 30000 });
+  const sky = createSky(sunDir, { ...SKY, radius: 30000, sunGlow: 0.25, horizonLift: 0.07 });
   scene.add(sky);
   scene.add(new THREE.HemisphereLight(0xffffff, 0x666666, 1.0));
 
@@ -100,8 +100,8 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
     { a: 3, ...F(geo(47.4958, 19.0432, 105), geo(47.4962, 19.0394, 75), 0.2) },
     { a: 3.5, ...F(geo(47.4935, 19.045, 210), G(P.elisabeth, 20)) },
     { a: 4, ...F(geo(47.4938, 19.0478, 60), G(P.elisabeth, 18), -0.1) },
-    { a: 4.5, ...F(geo(47.49, 19.0525, 175), G(P.statue, 140)) },
-    { a: 5, ...F(geo(47.488, 19.0503, 178), G(P.statue, 148), 0.2) },
+    { a: 4.5, ...F(geo(47.4895, 19.0535, 175), G(P.statue, 140)) },
+    { a: 5, ...F(geo(47.4859, 19.0494, 165), G(P.statue, 145), 0.2) },
     { a: 5.5, ...F(geo(47.4878, 19.053, 150), G(P.liberty, 15)) },
     { a: 6, ...F(geo(47.488, 19.0528, 46), G(P.liberty, 20), -0.14) },
     { a: 6.4, p: G(P.liberty, 52), l: geo(47.484, 19.0585, 20) },
@@ -123,7 +123,7 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
 
   // Soft beacon over Corvinus so the destination reads from the air.
   const beacon = new THREE.Mesh(
-    new THREE.CylinderGeometry(14, 34, 420, 40, 1, true),
+    new THREE.CylinderGeometry(6, 16, 420, 40, 1, true),
     new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, opacity: 0.14, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }),
   );
   beacon.position.copy(G(P.corvinus, 210));
@@ -183,7 +183,7 @@ export function createGoogleWorld({ renderer, camera, isSmall, keys, onFatal }) 
     },
     update(t) {
       sky.position.copy(camera.position);
-      beacon.material.opacity = 0.11 + Math.sin(t * 1.5) * 0.035;
+      beacon.material.opacity = 0.07 + Math.sin(t * 1.5) * 0.025;
       const h = Math.max(1, camera.position.y - waterOffset);
       camera.near = THREE.MathUtils.clamp(h * 0.02, 0.5, 20);
       camera.updateProjectionMatrix();

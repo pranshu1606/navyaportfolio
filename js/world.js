@@ -26,6 +26,8 @@ export function createSky(sunDir, opts = {}) {
       mid: { value: opts.mid || PALETTE.skyMid },
       horizon: { value: opts.horizon || PALETTE.horizon },
       sunDir: { value: sunDir.clone().normalize() },
+      sunGlow: { value: opts.sunGlow ?? 1 },
+      lift: { value: opts.horizonLift ?? 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -35,15 +37,18 @@ export function createSky(sunDir, opts = {}) {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 top, mid, horizon, sunDir;
+      uniform float sunGlow, lift;
       varying vec3 vDir;
       void main() {
         float h = vDir.y;
-        vec3 col = mix(horizon, mid, smoothstep(-0.02, 0.18, h));
+        vec3 col = mix(horizon, mid, smoothstep(lift - 0.02, lift + 0.18, h));
         col = mix(col, top, smoothstep(0.15, 0.65, h));
         float s = max(dot(normalize(vDir), normalize(sunDir)), 0.0);
-        col += vec3(1.0, 0.55, 0.3) * pow(s, 12.0) * 0.55;
-        col += vec3(1.0, 0.8, 0.55) * pow(s, 300.0) * 2.5;
+        col += vec3(1.0, 0.55, 0.3) * pow(s, 12.0) * 0.55 * sunGlow;
+        col += vec3(1.0, 0.8, 0.55) * pow(s, 300.0) * 2.5 * sunGlow;
         gl_FragColor = vec4(col, 1.0);
+        #include <tonemapping_fragment>
+        #include <colorspace_fragment>
       }`,
   });
   const sky = new THREE.Mesh(geo, mat);
