@@ -15,16 +15,16 @@ export const PALETTE = {
 };
 
 // ---------------- Sky ----------------
-export function createSky(sunDir) {
-  const geo = new THREE.SphereGeometry(2200, 32, 16);
+export function createSky(sunDir, opts = {}) {
+  const geo = new THREE.SphereGeometry(opts.radius || 2200, 32, 16);
   const mat = new THREE.ShaderMaterial({
     side: THREE.BackSide,
     depthWrite: false,
     fog: false,
     uniforms: {
-      top: { value: PALETTE.skyTop },
-      mid: { value: PALETTE.skyMid },
-      horizon: { value: PALETTE.horizon },
+      top: { value: opts.top || PALETTE.skyTop },
+      mid: { value: opts.mid || PALETTE.skyMid },
+      horizon: { value: opts.horizon || PALETTE.horizon },
       sunDir: { value: sunDir.clone().normalize() },
     },
     vertexShader: /* glsl */ `

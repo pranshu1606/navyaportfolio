@@ -100,6 +100,14 @@ body.no-webgl {
 .place small { color: var(--dim); font-size: 11.5px; letter-spacing: 0.04em; font-variant-numeric: tabular-nums; }
 .pin { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 4px rgba(255, 184, 107, 0.2), 0 0 16px var(--amber); }
 
+/* ---------- map data attribution (required for Google tiles) ---------- */
+.credits {
+  position: fixed; right: clamp(16px, 4vw, 44px); bottom: 14px; z-index: 15; margin: 0; max-width: min(520px, 60vw);
+  font-size: 10.5px; line-height: 1.4; color: rgba(255, 255, 255, 0.85); text-align: right;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8); pointer-events: none;
+}
+body[data-world='google'] footer { bottom: 44px; }
+
 /* ---------- labels projected from 3D ---------- */
 #labels { position: fixed; inset: 0; pointer-events: none; z-index: 2; overflow: hidden; }
 .map-label {
